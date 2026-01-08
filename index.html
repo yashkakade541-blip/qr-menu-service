@@ -1,1 +1,1639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Menu SaaS - Restaurant Ordering Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.js"></script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
 
+    <!-- Super Admin Hide Logic -->
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const isSuperAdmin = urlParams.get('super') === 'true';
+        
+        if (!isSuperAdmin) {
+            document.addEventListener('DOMContentLoaded', function() {
+                const superTab = document.getElementById('superLoginTab');
+                const superForm = document.getElementById('superLoginForm');
+                const adminTab = document.getElementById('adminLoginTab');
+                
+                if (superTab) superTab.style.display = 'none';
+                if (superForm) superForm.style.display = 'none';
+                
+                // Auto-select admin tab
+                if (adminTab) {
+                    adminTab.classList.add('bg-purple-600', 'text-white');
+                    adminTab.classList.remove('bg-gray-200', 'text-gray-700');
+                    document.getElementById('adminLoginForm').classList.remove('hidden');
+                }
+            });
+        }
+    </script>
+
+    <!-- Login Page -->
+    <div id="loginPage" class="min-h-screen gradient-bg flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
+            <h1 class="text-3xl font-bold text-center mb-2">QR Menu SaaS</h1>
+            <p class="text-center text-gray-600 mb-8">Multi-Restaurant Ordering Platform</p>
+            
+            <div class="flex gap-2 mb-6">
+                <button onclick="showLoginTab('super')" id="superLoginTab" class="flex-1 py-2 rounded-lg font-semibold bg-purple-600 text-white">
+                    👑 Super Admin
+                </button>
+                <button onclick="showLoginTab('admin')" id="adminLoginTab" class="flex-1 py-2 rounded-lg font-semibold bg-gray-200 text-gray-700">
+                    🏪 Restaurant Admin
+                </button>
+            </div>
+
+            <!-- Super Admin Login -->
+            <form id="superLoginForm" class="space-y-4">
+                <div>
+                    <label class="block font-semibold mb-2">Email</label>
+                    <input type="email" id="superEmail" value="owner@qrmenu.com" required class="w-full border-2 border-gray-300 rounded-lg px-4 py-3 focus:border-purple-600 outline-none">
+                </div>
+                <div>
+                    <label class="block font-semibold mb-2">Password</label>
+                    <input type="password" id="superPassword" value="Admin@296220" required class="w-full border-2 border-gray-300 rounded-lg px-4 py-3 focus:border-purple-600 outline-none">
+                </div>
+                <button type="submit" class="w-full bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700">
+                    Login as Super Admin
+                </button>
+            </form>
+
+            <!-- Restaurant Admin Login -->
+            <form id="adminLoginForm" class="space-y-4 hidden">
+                <div>
+                    <label class="block font-semibold mb-2">Email</label>
+                    <input type="email" id="adminEmail" required class="w-full border-2 border-gray-300 rounded-lg px-4 py-3 focus:border-purple-600 outline-none">
+                </div>
+                <div>
+                    <label class="block font-semibold mb-2">Password</label>
+                    <input type="password" id="adminPassword" required class="w-full border-2 border-gray-300 rounded-lg px-4 py-3 focus:border-purple-600 outline-none">
+                </div>
+                <button type="submit" class="w-full bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700">
+                    Login as Restaurant Admin
+                </button>
+            </form>
+
+            <div class="mt-6 text-center">
+                <a href="#customer" onclick="showCustomerView()" class="text-purple-600 hover:underline">
+                    👤 Continue as Customer (Scan QR)
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Super Admin Dashboard -->
+    <div id="superAdminDashboard" class="hidden">
+        <!-- Header -->
+        <nav class="bg-white shadow-lg">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between items-center h-16">
+                    <div class="flex items-center">
+                        <h1 class="text-2xl font-bold gradient-bg bg-clip-text text-transparent">👑 Super Admin</h1>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <span class="text-gray-700">Welcome, <span id="superAdminName" class="font-bold"></span></span>
+                        <button onclick="logout()" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700">
+                            Logout
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <!-- Stats -->
+            <div class="grid md:grid-cols-4 gap-6 mb-8">
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <div class="text-3xl font-bold text-purple-600" id="totalRestaurants">0</div>
+                    <div class="text-gray-600">Total Restaurants</div>
+                </div>
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <div class="text-3xl font-bold text-green-600">₹<span id="totalRevenue">0</span></div>
+                    <div class="text-gray-600">Monthly Revenue</div>
+                </div>
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <div class="text-3xl font-bold text-blue-600" id="activeRestaurants">0</div>
+                    <div class="text-gray-600">Active</div>
+                </div>
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <div class="text-3xl font-bold text-orange-600" id="totalOrders">0</div>
+                    <div class="text-gray-600">Total Orders</div>
+                </div>
+            </div>
+
+            <!-- Add Restaurant Button -->
+            <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-2xl font-bold">My Restaurants</h2>
+                    <button onclick="showAddRestaurantModal()" class="bg-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-700">
+                        + Add New Restaurant
+                    </button>
+                </div>
+            </div>
+
+            <!-- Restaurants List -->
+            <div id="restaurantsList" class="space-y-4"></div>
+        </div>
+    </div>
+
+    <!-- Restaurant Admin Dashboard -->
+    <div id="restaurantAdminDashboard" class="hidden">
+        <!-- Header -->
+        <nav class="bg-white shadow-lg">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between items-center h-16">
+                    <div class="flex items-center">
+                        <h1 class="text-2xl font-bold gradient-bg bg-clip-text text-transparent">
+                            🏪 <span id="restaurantName"></span>
+                        </h1>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <span class="text-gray-700">Admin: <span id="adminName" class="font-bold"></span></span>
+                        <button onclick="logout()" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700">
+                            Logout
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <!-- Stats Dashboard -->
+            <div class="grid md:grid-cols-4 gap-6 mb-8">
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <div class="text-3xl font-bold text-blue-600" id="todayOrders">0</div>
+                    <div class="text-gray-600">Today's Orders</div>
+                </div>
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <div class="text-3xl font-bold text-green-600">₹<span id="todayEarnings">0</span></div>
+                    <div class="text-gray-600">Today's Earnings</div>
+                </div>
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <div class="text-3xl font-bold text-orange-600" id="pendingOrders">0</div>
+                    <div class="text-gray-600">Pending Orders</div>
+                </div>
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <div class="text-3xl font-bold text-purple-600" id="totalMenuItems">0</div>
+                    <div class="text-gray-600">Menu Items</div>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="flex gap-2 mb-6">
+                <button onclick="showAdminTab('orders')" id="ordersTab" class="px-6 py-3 rounded-lg font-semibold bg-purple-600 text-white">
+                    📋 Orders
+                </button>
+                <button onclick="showAdminTab('menu')" id="menuTab" class="px-6 py-3 rounded-lg font-semibold bg-gray-200 text-gray-700">
+                    🍽️ Menu Management
+                </button>
+                <button onclick="showAdminTab('qr')" id="qrTab" class="px-6 py-3 rounded-lg font-semibold bg-gray-200 text-gray-700">
+                    📱 QR Codes
+                </button>
+            </div>
+
+            <!-- Orders Tab -->
+            <div id="ordersTabContent" class="tab-content">
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-2xl font-bold">Orders Management</h3>
+                        <div class="flex gap-2">
+                            <button onclick="toggleOrderView('active')" id="viewActiveBtn" class="px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold">
+                                📋 Active Orders
+                            </button>
+                            <button onclick="toggleOrderView('archived')" id="viewArchivedBtn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold">
+                                📦 Archived
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Stats -->
+                    <div class="grid grid-cols-3 gap-4 mb-6">
+                        <div class="bg-blue-50 rounded-lg p-4">
+                            <div class="text-2xl font-bold text-blue-600" id="totalOrdersCount">0</div>
+                            <div class="text-sm text-gray-600">Total Orders</div>
+                        </div>
+                        <div class="bg-green-50 rounded-lg p-4">
+                            <div class="text-2xl font-bold text-green-600">₹<span id="totalRevenueCount">0</span></div>
+                            <div class="text-sm text-gray-600">Total Revenue</div>
+                        </div>
+                        <div class="bg-purple-50 rounded-lg p-4">
+                            <div class="text-2xl font-bold text-purple-600" id="selectedCount">0</div>
+                            <div class="text-sm text-gray-600">Selected</div>
+                        </div>
+                    </div>
+
+                    <!-- Bulk Actions -->
+                    <div id="bulkActions" class="hidden mb-4 p-4 bg-gray-50 rounded-lg">
+                        <div class="flex gap-3">
+                            <button onclick="bulkMarkComplete()" class="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 font-semibold">
+                                ✓ Mark Complete
+                            </button>
+                            <button onclick="bulkArchive()" class="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 font-semibold">
+                                📦 Archive
+                            </button>
+                            <button onclick="bulkDelete()" class="flex-1 bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 font-semibold">
+                                🗑️ Delete
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Select All -->
+                    <div class="mb-4 flex items-center gap-2">
+                        <input type="checkbox" id="selectAllOrders" onchange="toggleSelectAll()" class="w-5 h-5 rounded">
+                        <label for="selectAllOrders" class="font-semibold cursor-pointer">Select All</label>
+                    </div>
+
+                    <div id="ordersList" class="space-y-4"></div>
+                    <div id="noOrders" class="text-center py-12 text-gray-400">
+                        <div class="text-6xl mb-4">📋</div>
+                        <p class="text-xl">No orders yet</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Menu Tab -->
+            <div id="menuTabContent" class="tab-content hidden">
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-2xl font-bold">Menu Management</h3>
+                        <button onclick="showAddMenuItemModal()" class="bg-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-700">
+                            + Add Menu Item
+                        </button>
+                    </div>
+                    <div id="menuItemsList" class="space-y-3"></div>
+                </div>
+            </div>
+
+            <!-- QR Codes Tab -->
+            <div id="qrTabContent" class="tab-content hidden">
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <h3 class="text-2xl font-bold mb-4">QR Codes for Tables</h3>
+                    <p class="text-gray-600 mb-6">Generate QR codes for each table</p>
+                    
+                    <div class="mb-6">
+                        <label class="block font-semibold mb-2">Number of Tables</label>
+                        <input type="number" id="tablesCount" min="1" max="50" value="10" class="border-2 border-gray-300 rounded-lg px-4 py-2">
+                        <button onclick="generateQRCodes()" class="ml-4 bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700">
+                            Generate QR Codes
+                        </button>
+                    </div>
+
+                    <div id="qrCodesContainer" class="grid md:grid-cols-3 gap-6"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Customer View -->
+    <div id="customerView" class="hidden">
+        <!-- Select Restaurant -->
+        <div id="selectRestaurant" class="min-h-screen gradient-bg flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
+                <h2 class="text-3xl font-bold text-center mb-6">Select Restaurant</h2>
+                <div id="restaurantsListCustomer" class="space-y-3"></div>
+                <div class="mt-6 text-center">
+                    <button onclick="showLoginPage()" class="text-purple-600 hover:underline">
+                        ← Back to Login
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Menu View -->
+        <div id="menuView" class="hidden">
+            <nav class="bg-white shadow-lg sticky top-0 z-50">
+                <div class="max-w-4xl mx-auto px-4 py-4">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h1 class="text-2xl font-bold" id="customerRestaurantName"></h1>
+                            <p class="text-sm text-gray-600">Table: <span id="customerTableNumber" class="font-bold"></span></p>
+                        </div>
+                        <button onclick="showCart()" id="cartButton" class="bg-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-purple-700">
+                            🛒 Cart (<span id="cartCount">0</span>)
+                        </button>
+                    </div>
+                </div>
+            </nav>
+
+            <div class="max-w-4xl mx-auto px-4 py-6">
+                <!-- Customer Name Input -->
+                <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
+                    <label class="block font-semibold mb-2">Your Name</label>
+                    <input type="text" id="customerNameInput" placeholder="Enter your name" class="w-full border-2 border-gray-300 rounded-lg px-4 py-3 focus:border-purple-600 outline-none">
+                </div>
+
+                <!-- Menu Items -->
+                <div id="menuItemsCustomer" class="grid md:grid-cols-2 gap-4"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Restaurant Modal -->
+    <div id="editRestaurantModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+        <div class="bg-white rounded-xl max-w-md w-full p-6 my-8 max-h-[90vh] overflow-y-auto">
+            <h3 class="text-2xl font-bold mb-4 sticky top-0 bg-white pb-2">Edit Restaurant</h3>
+            <form id="editRestaurantForm" class="space-y-4">
+                <input type="hidden" id="editRestaurantId">
+                <div>
+                    <label class="block font-semibold mb-2">Restaurant Name *</label>
+                    <input type="text" id="editRestaurantName" required class="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-purple-600 outline-none">
+                </div>
+                <div>
+                    <label class="block font-semibold mb-2">Address</label>
+                    <input type="text" id="editRestaurantAddress" class="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-purple-600 outline-none">
+                </div>
+                <div>
+                    <label class="block font-semibold mb-2">Phone</label>
+                    <input type="tel" id="editRestaurantPhone" class="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-purple-600 outline-none">
+                </div>
+                <div>
+                    <label class="block font-semibold mb-2">Number of Tables</label>
+                    <input type="number" id="editRestaurantTables" min="1" class="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-purple-600 outline-none">
+                </div>
+                <div>
+                    <label class="block font-semibold mb-2">Monthly Fee (₹)</label>
+                    <input type="number" id="editRestaurantFee" class="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-purple-600 outline-none">
+                </div>
+                
+                <hr class="my-4">
+                <h4 class="font-bold text-lg mb-2">🎨 Restaurant Profile & Theme</h4>
+                
+                <div>
+                    <label class="block font-semibold mb-2">Restaurant Logo URL (Optional)</label>
+                    <input type="url" id="editRestaurantLogo" placeholder="https://example.com/logo.png" class="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-purple-600 outline-none">
+                </div>
+                
+                <div>
+                    <label class="block font-semibold mb-2">Theme Color</label>
+                    <div class="grid grid-cols-4 gap-2 mb-2">
+                        <button type="button" onclick="selectEditThemeColor('#8B5CF6')" class="edit-theme-color-btn h-12 rounded-lg border-2 border-gray-300" style="background-color: #8B5CF6;" data-color="#8B5CF6">
+                            <span class="text-white text-xs">Purple</span>
+                        </button>
+                        <button type="button" onclick="selectEditThemeColor('#EF4444')" class="edit-theme-color-btn h-12 rounded-lg border-2 border-gray-300" style="background-color: #EF4444;" data-color="#EF4444">
+                            <span class="text-white text-xs">Red</span>
+                        </button>
+                        <button type="button" onclick="selectEditThemeColor('#3B82F6')" class="edit-theme-color-btn h-12 rounded-lg border-2 border-gray-300" style="background-color: #3B82F6;" data-color="#3B82F6">
+                            <span class="text-white text-xs">Blue</span>
+                        </button>
+                        <button type="button" onclick="selectEditThemeColor('#10B981')" class="edit-theme-color-btn h-12 rounded-lg border-2 border-gray-300" style="background-color: #10B981;" data-color="#10B981">
+                            <span class="text-white text-xs">Green</span>
+                        </button>
+                        <button type="button" onclick="selectEditThemeColor('#F59E0B')" class="edit-theme-color-btn h-12 rounded-lg border-2 border-gray-300" style="background-color: #F59E0B;" data-color="#F59E0B">
+                            <span class="text-white text-xs">Orange</span>
+                        </button>
+                        <button type="button" onclick="selectEditThemeColor('#EC4899')" class="edit-theme-color-btn h-12 rounded-lg border-2 border-gray-300" style="background-color: #EC4899;" data-color="#EC4899">
+                            <span class="text-white text-xs">Pink</span>
+                        </button>
+                        <button type="button" onclick="selectEditThemeColor('#06B6D4')" class="edit-theme-color-btn h-12 rounded-lg border-2 border-gray-300" style="background-color: #06B6D4;" data-color="#06B6D4">
+                            <span class="text-white text-xs">Cyan</span>
+                        </button>
+                        <button type="button" onclick="selectEditThemeColor('#8B5A3C')" class="edit-theme-color-btn h-12 rounded-lg border-2 border-gray-300" style="background-color: #8B5A3C;" data-color="#8B5A3C">
+                            <span class="text-white text-xs">Brown</span>
+                        </button>
+                    </div>
+                    <input type="text" id="editRestaurantThemeColor" readonly class="w-full border-2 border-gray-300 rounded-lg px-4 py-2 bg-gray-50">
+                </div>
+                
+                <div>
+                    <label class="block font-semibold mb-2">Description (Optional)</label>
+                    <textarea id="editRestaurantDescription" rows="2" placeholder="Best cafe in town..." class="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-purple-600 outline-none"></textarea>
+                </div>
+                
+                <div class="flex gap-3 mt-6">
+                    <button type="submit" class="flex-1 bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700">
+                        Update Restaurant
+                    </button>
+                    <button type="button" onclick="closeEditRestaurantModal()" class="px-6 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Restaurant Modal -->
+    <div id="addRestaurantModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+        <div class="bg-white rounded-xl max-w-md w-full p-6 my-8 max-h-[90vh] overflow-y-auto">
+            <h3 class="text-2xl font-bold mb-4 sticky top-0 bg-white pb-2">Add New Restaurant</h3>
+            <form id="addRestaurantForm" class="space-y-4">
+                <div>
+                    <label class="block font-semibold mb-2">Restaurant Name *</label>
+                    <input type="text" id="restaurantNameInput" required class="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-purple-600 outline-none">
+                </div>
+                <div>
+                    <label class="block font-semibold mb-2">Address</label>
+                    <input type="text" id="restaurantAddress" class="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-purple-600 outline-none">
+                </div>
+                <div>
+                    <label class="block font-semibold mb-2">Phone</label>
+                    <input type="tel" id="restaurantPhone" class="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-purple-600 outline-none">
+                </div>
+                <div>
+                    <label class="block font-semibold mb-2">Number of Tables</label>
+                    <input type="number" id="restaurantTables" min="1" value="10" class="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-purple-600 outline-none">
+                </div>
+                <div>
+                    <label class="block font-semibold mb-2">Monthly Fee (₹)</label>
+                    <input type="number" id="restaurantFee" value="999" class="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-purple-600 outline-none">
+                </div>
+                
+                <hr class="my-4">
+                <h4 class="font-bold text-lg mb-2">🎨 Restaurant Profile & Theme</h4>
+                
+                <div>
+                    <label class="block font-semibold mb-2">Restaurant Logo URL (Optional)</label>
+                    <input type="url" id="restaurantLogo" placeholder="https://example.com/logo.png" class="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-purple-600 outline-none">
+                    <p class="text-xs text-gray-500 mt-1">Customer menu par dikhega</p>
+                </div>
+                
+                <div>
+                    <label class="block font-semibold mb-2">Theme Color</label>
+                    <div class="grid grid-cols-4 gap-2 mb-2">
+                        <button type="button" onclick="selectThemeColor('#8B5CF6')" class="theme-color-btn h-12 rounded-lg border-2 border-gray-300" style="background-color: #8B5CF6;" data-color="#8B5CF6">
+                            <span class="text-white text-xs">Purple</span>
+                        </button>
+                        <button type="button" onclick="selectThemeColor('#EF4444')" class="theme-color-btn h-12 rounded-lg border-2 border-gray-300" style="background-color: #EF4444;" data-color="#EF4444">
+                            <span class="text-white text-xs">Red</span>
+                        </button>
+                        <button type="button" onclick="selectThemeColor('#3B82F6')" class="theme-color-btn h-12 rounded-lg border-2 border-gray-300" style="background-color: #3B82F6;" data-color="#3B82F6">
+                            <span class="text-white text-xs">Blue</span>
+                        </button>
+                        <button type="button" onclick="selectThemeColor('#10B981')" class="theme-color-btn h-12 rounded-lg border-2 border-gray-300" style="background-color: #10B981;" data-color="#10B981">
+                            <span class="text-white text-xs">Green</span>
+                        </button>
+                        <button type="button" onclick="selectThemeColor('#F59E0B')" class="theme-color-btn h-12 rounded-lg border-2 border-gray-300" style="background-color: #F59E0B;" data-color="#F59E0B">
+                            <span class="text-white text-xs">Orange</span>
+                        </button>
+                        <button type="button" onclick="selectThemeColor('#EC4899')" class="theme-color-btn h-12 rounded-lg border-2 border-gray-300" style="background-color: #EC4899;" data-color="#EC4899">
+                            <span class="text-white text-xs">Pink</span>
+                        </button>
+                        <button type="button" onclick="selectThemeColor('#06B6D4')" class="theme-color-btn h-12 rounded-lg border-2 border-gray-300" style="background-color: #06B6D4;" data-color="#06B6D4">
+                            <span class="text-white text-xs">Cyan</span>
+                        </button>
+                        <button type="button" onclick="selectThemeColor('#8B5A3C')" class="theme-color-btn h-12 rounded-lg border-2 border-gray-300" style="background-color: #8B5A3C;" data-color="#8B5A3C">
+                            <span class="text-white text-xs">Brown</span>
+                        </button>
+                    </div>
+                    <input type="text" id="restaurantThemeColor" value="#8B5CF6" readonly class="w-full border-2 border-gray-300 rounded-lg px-4 py-2 bg-gray-50">
+                </div>
+                
+                <div>
+                    <label class="block font-semibold mb-2">Description (Optional)</label>
+                    <textarea id="restaurantDescription" rows="2" placeholder="Best cafe in town with amazing coffee..." class="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-purple-600 outline-none"></textarea>
+                </div>
+                
+                <hr class="my-4">
+                <h4 class="font-bold text-lg">Admin Credentials</h4>
+                <div>
+                    <label class="block font-semibold mb-2">Admin Name *</label>
+                    <input type="text" id="adminNameInput" required class="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-purple-600 outline-none">
+                </div>
+                <div>
+                    <label class="block font-semibold mb-2">Admin Email *</label>
+                    <input type="email" id="adminEmailInput" required class="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-purple-600 outline-none">
+                </div>
+                <div>
+                    <label class="block font-semibold mb-2">Admin Password *</label>
+                    <input type="password" id="adminPasswordInput" required class="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-purple-600 outline-none">
+                </div>
+                <div class="flex gap-3 mt-6">
+                    <button type="submit" class="flex-1 bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700">
+                        Add Restaurant
+                    </button>
+                    <button type="button" onclick="closeAddRestaurantModal()" class="px-6 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Menu Item Modal -->
+    <div id="addMenuItemModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl max-w-md w-full p-6">
+            <h3 class="text-2xl font-bold mb-4">Add Menu Item</h3>
+            <form id="addMenuItemForm" class="space-y-4">
+                <div>
+                    <label class="block font-semibold mb-2">Item Name *</label>
+                    <input type="text" id="menuItemName" required class="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-purple-600 outline-none">
+                </div>
+                <div>
+                    <label class="block font-semibold mb-2">Category *</label>
+                    <select id="menuItemCategory" required class="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-purple-600 outline-none">
+                        <option value="">Select Category</option>
+                        <option value="beverages">Beverages</option>
+                        <option value="snacks">Snacks</option>
+                        <option value="main">Main Course</option>
+                        <option value="desserts">Desserts</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-semibold mb-2">Price (₹) *</label>
+                    <input type="number" id="menuItemPrice" required min="1" class="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-purple-600 outline-none">
+                </div>
+                <div>
+                    <label class="block font-semibold mb-2">Image/Emoji</label>
+                    <div class="flex gap-2 mb-2">
+                        <button type="button" onclick="toggleImageType('emoji')" id="emojiBtn" class="flex-1 py-2 bg-purple-600 text-white rounded-lg font-semibold">
+                            😊 Emoji
+                        </button>
+                        <button type="button" onclick="toggleImageType('image')" id="imageBtn" class="flex-1 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold">
+                            🖼️ Image URL
+                        </button>
+                    </div>
+                    <div id="emojiInput">
+                        <input type="text" id="menuItemEmoji" value="🍽️" maxlength="2" class="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-purple-600 outline-none text-3xl text-center">
+                    </div>
+                    <div id="imageInput" class="hidden">
+                        <input type="url" id="menuItemImage" placeholder="https://example.com/image.jpg" class="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-purple-600 outline-none">
+                        <p class="text-xs text-gray-500 mt-1">Paste image URL (from Google, Unsplash, etc.)</p>
+                    </div>
+                </div>
+                <div class="flex gap-3 mt-6">
+                    <button type="submit" class="flex-1 bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700">
+                        Add Item
+                    </button>
+                    <button type="button" onclick="closeAddMenuItemModal()" class="px-6 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Cart Modal -->
+    <div id="cartModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-2xl font-bold">Your Cart</h3>
+                <button onclick="closeCart()" class="text-gray-500 hover:text-gray-700 text-2xl">×</button>
+            </div>
+            <div id="cartItems"></div>
+            <div class="border-t pt-4 mt-4">
+                <div class="flex justify-between text-xl font-bold mb-4">
+                    <span>Total:</span>
+                    <span>₹<span id="cartTotal">0</span></span>
+                </div>
+                <button onclick="placeOrder()" class="w-full bg-green-600 text-white py-4 rounded-lg text-lg font-bold hover:bg-green-700">
+                    Place Order 🎉
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Supabase Configuration
+        const SUPABASE_URL = 'https://eawtxegerinqfpdbkkdp.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVhd3R4ZWdlcmlucWZwZGJra2RwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc3OTY3OTEsImV4cCI6MjA4MzM3Mjc5MX0.TeMJhtdO-WIqGYuq4u7WjK8Bmnhu_1pYlRaIb346PgA';
+        
+        if (typeof window.supabase === 'undefined') {
+            alert('⚠️ Supabase library not loaded! Check your internet connection and refresh the page.');
+        }
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        
+        console.log('✅ Supabase initialized successfully');
+
+        // Global Variables
+        let currentUser = null;
+        let currentRestaurant = null;
+        let cart = [];
+        let imageType = 'emoji';
+        let selectedOrders = new Set();
+        let currentOrderView = 'active';
+
+        // Login Tab Switch
+        function showLoginTab(type) {
+            const tabs = document.querySelectorAll('[id$="LoginTab"]');
+            tabs.forEach(tab => {
+                tab.classList.remove('bg-purple-600', 'text-white');
+                tab.classList.add('bg-gray-200', 'text-gray-700');
+            });
+
+            if (type === 'super') {
+                document.getElementById('superLoginTab').classList.add('bg-purple-600', 'text-white');
+                document.getElementById('superLoginTab').classList.remove('bg-gray-200', 'text-gray-700');
+                document.getElementById('superLoginForm').classList.remove('hidden');
+                document.getElementById('adminLoginForm').classList.add('hidden');
+            } else {
+                document.getElementById('adminLoginTab').classList.add('bg-purple-600', 'text-white');
+                document.getElementById('adminLoginTab').classList.remove('bg-gray-200', 'text-gray-700');
+                document.getElementById('adminLoginForm').classList.remove('hidden');
+                document.getElementById('superLoginForm').classList.add('hidden');
+            }
+        }
+
+        // Super Admin Login
+        document.getElementById('superLoginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('superEmail').value;
+            const password = document.getElementById('superPassword').value;
+
+            const { data, error } = await supabase
+                .from('super_admins')
+                .select('*')
+                .eq('email', email)
+                .eq('password', password)
+                .single();
+
+            if (error || !data) {
+                alert('Invalid credentials!');
+                return;
+            }
+
+            currentUser = { type: 'super', data: data };
+            showSuperAdminDashboard();
+        });
+
+        // Restaurant Admin Login
+        document.getElementById('adminLoginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('adminEmail').value;
+            const password = document.getElementById('adminPassword').value;
+
+            const { data, error } = await supabase
+                .from('restaurant_admins')
+                .select('*, restaurants(*)')
+                .eq('email', email)
+                .eq('password', password)
+                .single();
+
+            if (error || !data) {
+                alert('Invalid credentials!');
+                return;
+            }
+
+            currentUser = { type: 'admin', data: data };
+            currentRestaurant = data.restaurants;
+            showRestaurantAdminDashboard();
+        });
+
+        // Show Super Admin Dashboard
+        async function showSuperAdminDashboard() {
+            document.getElementById('loginPage').classList.add('hidden');
+            document.getElementById('superAdminDashboard').classList.remove('hidden');
+            document.getElementById('superAdminName').textContent = currentUser.data.name;
+            
+            await loadSuperAdminStats();
+            await loadRestaurantsList();
+        }
+
+        // Load Super Admin Stats
+        async function loadSuperAdminStats() {
+            const { data: restaurants } = await supabase
+                .from('restaurants')
+                .select('*');
+
+            const { data: orders } = await supabase
+                .from('orders')
+                .select('*');
+
+            const total = restaurants?.length || 0;
+            const active = restaurants?.filter(r => r.status === 'active').length || 0;
+            const revenue = restaurants?.reduce((sum, r) => sum + parseFloat(r.monthly_fee || 0), 0) || 0;
+            const totalOrders = orders?.length || 0;
+
+            document.getElementById('totalRestaurants').textContent = total;
+            document.getElementById('activeRestaurants').textContent = active;
+            document.getElementById('totalRevenue').textContent = revenue;
+            document.getElementById('totalOrders').textContent = totalOrders;
+        }
+
+        // Load Restaurants List
+        async function loadRestaurantsList() {
+            const { data: restaurants } = await supabase
+                .from('restaurants')
+                .select('*, restaurant_admins(*)')
+                .order('created_at', { ascending: false });
+
+            const list = document.getElementById('restaurantsList');
+            
+            if (!restaurants || restaurants.length === 0) {
+                list.innerHTML = '<div class="text-center py-12 text-gray-400"><p class="text-xl">No restaurants yet. Add your first client!</p></div>';
+                return;
+            }
+
+            list.innerHTML = restaurants.map(r => {
+                return `
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1">
+                            <h3 class="text-2xl font-bold mb-2">${r.name}</h3>
+                            <p class="text-gray-600 mb-1">📍 ${r.address || 'N/A'}</p>
+                            <p class="text-gray-600 mb-1">📞 ${r.phone || 'N/A'}</p>
+                            <p class="text-gray-600 mb-1">🪑 ${r.tables_count} Tables</p>
+                            <p class="text-green-600 font-bold">💰 ₹${r.monthly_fee}/month</p>
+                            ${r.theme_color ? `<p class="text-sm text-gray-500 mt-1">🎨 Theme: <span style="background:${r.theme_color}; padding:2px 8px; border-radius:4px; color:white;">${r.theme_color}</span></p>` : ''}
+                            <p class="text-sm text-gray-500 mt-2">Admin: ${r.restaurant_admins[0]?.email || 'N/A'}</p>
+                            <p class="text-xs text-gray-400">Added: ${new Date(r.created_at).toLocaleDateString()}</p>
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <span class="px-4 py-2 rounded-lg text-sm font-semibold ${r.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                                ${r.status.toUpperCase()}
+                            </span>
+                            <button onclick="editRestaurant('${r.id}')" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm">
+                                ✏️ Edit
+                            </button>
+                            <button onclick="deleteRestaurant('${r.id}')" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 text-sm">
+                                🗑️ Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        function showAddRestaurantModal() {
+            document.getElementById('addRestaurantModal').classList.remove('hidden');
+        }
+
+        function closeAddRestaurantModal() {
+            document.getElementById('addRestaurantModal').classList.add('hidden');
+            document.getElementById('addRestaurantForm').reset();
+        }
+
+        let selectedThemeColor = '#8B5CF6';
+
+        function selectThemeColor(color) {
+            selectedThemeColor = color;
+            document.getElementById('restaurantThemeColor').value = color;
+            
+            document.querySelectorAll('.theme-color-btn').forEach(btn => {
+                btn.classList.remove('ring-4', 'ring-offset-2');
+                if (btn.dataset.color === color) {
+                    btn.classList.add('ring-4', 'ring-offset-2');
+                    btn.style.borderColor = color;
+                }
+            });
+        }
+
+        document.getElementById('addRestaurantForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const restaurantData = {
+                name: document.getElementById('restaurantNameInput').value,
+                address: document.getElementById('restaurantAddress').value,
+                phone: document.getElementById('restaurantPhone').value,
+                tables_count: parseInt(document.getElementById('restaurantTables').value),
+                monthly_fee: parseFloat(document.getElementById('restaurantFee').value),
+                logo: document.getElementById('restaurantLogo').value || null,
+                theme_color: selectedThemeColor,
+                description: document.getElementById('restaurantDescription').value || null,
+                super_admin_id: currentUser.data.id
+            };
+
+            const { data: restaurant, error: restError } = await supabase
+                .from('restaurants')
+                .insert([restaurantData])
+                .select()
+                .single();
+
+            if (restError) {
+                alert('Error adding restaurant: ' + restError.message);
+                return;
+            }
+
+            const adminData = {
+                restaurant_id: restaurant.id,
+                name: document.getElementById('adminNameInput').value,
+                email: document.getElementById('adminEmailInput').value,
+                password: document.getElementById('adminPasswordInput').value
+            };
+
+            const { error: adminError } = await supabase
+                .from('restaurant_admins')
+                .insert([adminData]);
+
+            if (adminError) {
+                alert('Error creating admin: ' + adminError.message);
+                return;
+            }
+
+            alert('Restaurant added successfully! 🎉');
+            closeAddRestaurantModal();
+            loadSuperAdminStats();
+            loadRestaurantsList();
+        });
+
+        let editThemeColor = '#8B5CF6';
+        
+        async function editRestaurant(id) {
+            const { data, error } = await supabase
+                .from('restaurants')
+                .select('*')
+                .eq('id', id)
+                .single();
+            
+            if (error) {
+                alert('Error loading restaurant: ' + error.message);
+                return;
+            }
+            
+            document.getElementById('editRestaurantId').value = data.id;
+            document.getElementById('editRestaurantName').value = data.name;
+            document.getElementById('editRestaurantAddress').value = data.address || '';
+            document.getElementById('editRestaurantPhone').value = data.phone || '';
+            document.getElementById('editRestaurantTables').value = data.tables_count;
+            document.getElementById('editRestaurantFee').value = data.monthly_fee;
+            document.getElementById('editRestaurantLogo').value = data.logo || '';
+            document.getElementById('editRestaurantDescription').value = data.description || '';
+            
+            editThemeColor = data.theme_color || '#8B5CF6';
+            document.getElementById('editRestaurantThemeColor').value = editThemeColor;
+            selectEditThemeColor(editThemeColor);
+            
+            document.getElementById('editRestaurantModal').classList.remove('hidden');
+        }
+        
+        function closeEditRestaurantModal() {
+            document.getElementById('editRestaurantModal').classList.add('hidden');
+        }
+        
+        function selectEditThemeColor(color) {
+            editThemeColor = color;
+            document.getElementById('editRestaurantThemeColor').value = color;
+            
+            document.querySelectorAll('.edit-theme-color-btn').forEach(btn => {
+                btn.classList.remove('ring-4', 'ring-offset-2');
+                if (btn.dataset.color === color) {
+                    btn.classList.add('ring-4', 'ring-offset-2');
+                    btn.style.borderColor = color;
+                }
+            });
+        }
+        
+        document.getElementById('editRestaurantForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const id = document.getElementById('editRestaurantId').value;
+            const updateData = {
+                name: document.getElementById('editRestaurantName').value,
+                address: document.getElementById('editRestaurantAddress').value,
+                phone: document.getElementById('editRestaurantPhone').value,
+                tables_count: parseInt(document.getElementById('editRestaurantTables').value),
+                monthly_fee: parseFloat(document.getElementById('editRestaurantFee').value),
+                logo: document.getElementById('editRestaurantLogo').value || null,
+                theme_color: editThemeColor,
+                description: document.getElementById('editRestaurantDescription').value || null
+            };
+            
+            const { error } = await supabase
+                .from('restaurants')
+                .update(updateData)
+                .eq('id', id);
+            
+            if (error) {
+                alert('Error updating restaurant: ' + error.message);
+                return;
+            }
+            
+            alert('Restaurant updated successfully! ✅');
+            closeEditRestaurantModal();
+            loadSuperAdminStats();
+            loadRestaurantsList();
+        });
+
+        async function deleteRestaurant(id) {
+            if (!confirm('Are you sure? This will delete all data for this restaurant.')) return;
+
+            const { error } = await supabase
+                .from('restaurants')
+                .delete()
+                .eq('id', id);
+
+            if (error) {
+                alert('Error deleting restaurant: ' + error.message);
+                return;
+            }
+
+            alert('Restaurant deleted!');
+            loadSuperAdminStats();
+            loadRestaurantsList();
+        }
+
+        async function showRestaurantAdminDashboard() {
+            document.getElementById('loginPage').classList.add('hidden');
+            document.getElementById('restaurantAdminDashboard').classList.remove('hidden');
+            document.getElementById('restaurantName').textContent = currentRestaurant.name;
+            document.getElementById('adminName').textContent = currentUser.data.name;
+            
+            await loadRestaurantStats();
+            showAdminTab('orders');
+        }
+        
+        async function loadRestaurantStats() {
+            const { data: allOrders } = await supabase
+                .from('orders')
+                .select('*')
+                .eq('restaurant_id', currentRestaurant.id);
+            
+            const { data: menuItems } = await supabase
+                .from('menu_items')
+                .select('id')
+                .eq('restaurant_id', currentRestaurant.id);
+            
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            const todayOrders = allOrders?.filter(order => {
+                const orderDate = new Date(order.created_at);
+                orderDate.setHours(0, 0, 0, 0);
+                return orderDate.getTime() === today.getTime();
+            }) || [];
+            
+            const todayOrdersCount = todayOrders.length;
+            const todayEarnings = todayOrders.reduce((sum, o) => sum + parseFloat(o.total || 0), 0);
+            const pendingOrdersCount = allOrders?.filter(o => o.status === 'pending').length || 0;
+            const menuItemsCount = menuItems?.length || 0;
+            
+            document.getElementById('todayOrders').textContent = todayOrdersCount;
+            document.getElementById('todayEarnings').textContent = todayEarnings.toFixed(0);
+            document.getElementById('pendingOrders').textContent = pendingOrdersCount;
+            document.getElementById('totalMenuItems').textContent = menuItemsCount;
+        }
+
+        function showAdminTab(tab) {
+            const tabs = ['ordersTab', 'menuTab', 'qrTab'];
+            tabs.forEach(t => {
+                document.getElementById(t).classList.remove('bg-purple-600', 'text-white');
+                document.getElementById(t).classList.add('bg-gray-200', 'text-gray-700');
+            });
+
+            const contents = ['ordersTabContent', 'menuTabContent', 'qrTabContent'];
+            contents.forEach(c => document.getElementById(c).classList.add('hidden'));
+
+            document.getElementById(tab + 'Tab').classList.add('bg-purple-600', 'text-white');
+            document.getElementById(tab + 'Tab').classList.remove('bg-gray-200', 'text-gray-700');
+            document.getElementById(tab + 'TabContent').classList.remove('hidden');
+
+            if (tab === 'orders') {
+                loadOrders();
+                loadRestaurantStats();
+            }
+            if (tab === 'menu') {
+                loadMenuItems();
+                loadRestaurantStats();
+            }
+        }
+
+        function toggleOrderView(view) {
+            currentOrderView = view;
+            selectedOrders.clear();
+            
+            if (view === 'active') {
+                document.getElementById('viewActiveBtn').classList.add('bg-purple-600', 'text-white');
+                document.getElementById('viewActiveBtn').classList.remove('bg-gray-200', 'text-gray-700');
+                document.getElementById('viewArchivedBtn').classList.remove('bg-purple-600', 'text-white');
+                document.getElementById('viewArchivedBtn').classList.add('bg-gray-200', 'text-gray-700');
+            } else {
+                document.getElementById('viewArchivedBtn').classList.add('bg-purple-600', 'text-white');
+                document.getElementById('viewArchivedBtn').classList.remove('bg-gray-200', 'text-gray-700');
+                document.getElementById('viewActiveBtn').classList.remove('bg-purple-600', 'text-white');
+                document.getElementById('viewActiveBtn').classList.add('bg-gray-200', 'text-gray-700');
+            }
+            
+            loadOrders();
+        }
+
+        function toggleSelectAll() {
+            const checkbox = document.getElementById('selectAllOrders');
+            const checkboxes = document.querySelectorAll('.order-checkbox');
+            
+            checkboxes.forEach(cb => {
+                cb.checked = checkbox.checked;
+                if (checkbox.checked) {
+                    selectedOrders.add(cb.value);
+                } else {
+                    selectedOrders.delete(cb.value);
+                }
+            });
+            
+            updateBulkActions();
+        }
+
+        function toggleOrderSelection(orderId) {
+            if (selectedOrders.has(orderId)) {
+                selectedOrders.delete(orderId);
+            } else {
+                selectedOrders.add(orderId);
+            }
+            updateBulkActions();
+        }
+
+        function updateBulkActions() {
+            const count = selectedOrders.size;
+            document.getElementById('selectedCount').textContent = count;
+            
+            if (count > 0) {
+                document.getElementById('bulkActions').classList.remove('hidden');
+            } else {
+                document.getElementById('bulkActions').classList.add('hidden');
+            }
+            
+            const allCheckboxes = document.querySelectorAll('.order-checkbox');
+            const selectAllCheckbox = document.getElementById('selectAllOrders');
+            selectAllCheckbox.checked = allCheckboxes.length > 0 && selectedOrders.size === allCheckboxes.length;
+        }
+
+        async function bulkMarkComplete() {
+            if (selectedOrders.size === 0) return;
+            
+            const { error } = await supabase
+                .from('orders')
+                .update({ status: 'completed' })
+                .in('id', Array.from(selectedOrders));
+            
+            if (error) {
+                alert('Error: ' + error.message);
+                return;
+            }
+            
+            selectedOrders.clear();
+            loadOrders();
+        }
+
+        async function bulkArchive() {
+            if (selectedOrders.size === 0) return;
+            
+            if (!confirm(`Archive ${selectedOrders.size} order(s)?`)) return;
+            
+            const { error } = await supabase
+                .from('orders')
+                .update({ status: 'archived' })
+                .in('id', Array.from(selectedOrders));
+            
+            if (error) {
+                alert('Error: ' + error.message);
+                return;
+            }
+            
+            alert('Orders archived successfully! 📦');
+            selectedOrders.clear();
+            loadOrders();
+        }
+
+        async function bulkDelete() {
+            if (selectedOrders.size === 0) return;
+            
+            if (!confirm(`Delete ${selectedOrders.size} order(s)? This cannot be undone!`)) return;
+            
+            const { error } = await supabase
+                .from('orders')
+                .delete()
+                .in('id', Array.from(selectedOrders));
+            
+            if (error) {
+                alert('Error: ' + error.message);
+                return;
+            }
+            
+            alert('Orders deleted! 🗑️');
+            selectedOrders.clear();
+            loadOrders();
+        }
+
+        async function unarchiveOrder(orderId) {
+            const { error } = await supabase
+                .from('orders')
+                .update({ status: 'completed' })
+                .eq('id', orderId);
+            
+            if (error) {
+                alert('Error: ' + error.message);
+                return;
+            }
+            
+            loadOrders();
+        }
+
+        async function loadOrders() {
+            const { data: allOrders } = await supabase
+                .from('orders')
+                .select('*')
+                .eq('restaurant_id', currentRestaurant.id)
+                .order('created_at', { ascending: false });
+
+            const orders = allOrders?.filter(order => {
+                if (currentOrderView === 'archived') {
+                    return order.status === 'archived';
+                } else {
+                    return order.status !== 'archived';
+                }
+            });
+
+            const totalOrders = allOrders?.length || 0;
+            const totalRevenue = allOrders?.reduce((sum, o) => sum + parseFloat(o.total || 0), 0) || 0;
+            document.getElementById('totalOrdersCount').textContent = totalOrders;
+            document.getElementById('totalRevenueCount').textContent = totalRevenue;
+
+            const list = document.getElementById('ordersList');
+            const noOrders = document.getElementById('noOrders');
+
+            if (!orders || orders.length === 0) {
+                list.classList.add('hidden');
+                noOrders.classList.remove('hidden');
+                noOrders.innerHTML = `
+                    <div class="text-6xl mb-4">📋</div>
+                    <p class="text-xl">${currentOrderView === 'archived' ? 'No archived orders' : 'No active orders'}</p>
+                `;
+                document.getElementById('bulkActions').classList.add('hidden');
+                return;
+            }
+
+            list.classList.remove('hidden');
+            noOrders.classList.add('hidden');
+
+            list.innerHTML = orders.map(order => {
+                const items = JSON.parse(order.items);
+                const isSelected = selectedOrders.has(order.id);
+                return `
+                    <div class="border rounded-lg p-4 ${order.status === 'pending' ? 'bg-yellow-50 border-yellow-300' : order.status === 'archived' ? 'bg-gray-100' : 'bg-green-50'}">
+                        <div class="flex items-start gap-3">
+                            <input type="checkbox" value="${order.id}" ${isSelected ? 'checked' : ''} 
+                                   onchange="toggleOrderSelection('${order.id}')" 
+                                   class="order-checkbox w-5 h-5 mt-1 rounded">
+                            <div class="flex-1">
+                                <div class="flex justify-between items-start mb-3">
+                                    <div>
+                                        <div class="font-bold text-lg">Table ${order.table_number} - ${order.customer_name}</div>
+                                        <div class="text-sm text-gray-600">${new Date(order.created_at).toLocaleString()}</div>
+                                        <span class="inline-block mt-1 px-2 py-1 rounded text-xs font-semibold ${
+                                            order.status === 'pending' ? 'bg-yellow-200 text-yellow-800' : 
+                                            order.status === 'completed' ? 'bg-green-200 text-green-800' : 
+                                            'bg-gray-300 text-gray-700'
+                                        }">
+                                            ${order.status.toUpperCase()}
+                                        </span>
+                                    </div>
+                                    <div class="text-xl font-bold text-purple-600">₹${order.total}</div>
+                                </div>
+                                <div class="space-y-1 mb-3">
+                                    ${items.map(item => `
+                                        <div class="text-sm text-gray-700">${item.emoji} ${item.name} × ${item.quantity} = ₹${item.price * item.quantity}</div>
+                                    `).join('')}
+                                </div>
+                                <div class="flex gap-2">
+                                    ${order.status === 'pending' ? `
+                                        <button onclick="markOrderComplete('${order.id}')" class="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 text-sm font-semibold">
+                                            ✓ Mark Complete
+                                        </button>
+                                    ` : order.status === 'archived' ? `
+                                        <button onclick="unarchiveOrder('${order.id}')" class="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700 text-sm font-semibold">
+                                            ↩️ Unarchive
+                                        </button>
+                                    ` : `
+                                        <span class="flex-1 bg-green-100 text-green-800 py-2 rounded text-center font-semibold text-sm">
+                                            ✓ Completed
+                                        </span>
+                                    `}
+                                    <button onclick="deleteOrder('${order.id}')" class="px-4 bg-red-600 text-white py-2 rounded hover:bg-red-700 text-sm font-semibold">
+                                        🗑️
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            updateBulkActions();
+        }
+
+        async function deleteOrder(orderId) {
+            if (!confirm('Delete this order?')) return;
+            
+            const { error } = await supabase
+                .from('orders')
+                .delete()
+                .eq('id', orderId);
+            
+            if (error) {
+                alert('Error: ' + error.message);
+                return;
+            }
+            
+            loadOrders();
+        }
+
+        async function markOrderComplete(orderId) {
+            const { error } = await supabase
+                .from('orders')
+                .update({ status: 'completed' })
+                .eq('id', orderId);
+
+            if (error) {
+                alert('Error updating order: ' + error.message);
+                return;
+            }
+
+            loadOrders();
+        }
+
+        async function loadMenuItems() {
+            const { data: items } = await supabase
+                .from('menu_items')
+                .select('*')
+                .eq('restaurant_id', currentRestaurant.id)
+                .order('category');
+
+            const list = document.getElementById('menuItemsList');
+
+            if (!items || items.length === 0) {
+                list.innerHTML = '<div class="text-center py-12 text-gray-400"><p class="text-xl">No menu items yet. Add your first item!</p></div>';
+                return;
+            }
+
+            const categories = {
+                'beverages': '☕ Beverages',
+                'snacks': '🍟 Snacks',
+                'main': '🍛 Main Course',
+                'desserts': '🍰 Desserts'
+            };
+
+            let html = '';
+            for (let [catKey, catName] of Object.entries(categories)) {
+                const catItems = items.filter(item => item.category === catKey);
+                if (catItems.length > 0) {
+                    html += `<h4 class="font-bold text-lg mb-3 text-purple-600">${catName}</h4>`;
+                    catItems.forEach(item => {
+                        const isImage = item.emoji && (item.emoji.startsWith('http://') || item.emoji.startsWith('https://'));
+                        const imageDisplay = isImage 
+                            ? `<img src="${item.emoji}" alt="${item.name}" class="w-16 h-16 object-cover rounded-lg">`
+                            : `<div class="text-4xl">${item.emoji}</div>`;
+                        
+                        html += `
+                            <div class="flex items-center justify-between bg-gray-50 p-4 rounded-lg hover:bg-gray-100 mb-2">
+                                <div class="flex items-center gap-4 flex-1">
+                                    ${imageDisplay}
+                                    <div class="flex-1">
+                                        <div class="font-bold">${item.name}</div>
+                                        <div class="text-sm text-gray-600">${catName}</div>
+                                    </div>
+                                    <div class="text-xl font-bold text-green-600">₹${item.price}</div>
+                                </div>
+                                <button onclick="deleteMenuItem('${item.id}')" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 ml-4">
+                                    🗑️
+                                </button>
+                            </div>
+                        `;
+                    });
+                }
+            }
+
+            list.innerHTML = html;
+        }
+
+        function toggleImageType(type) {
+            imageType = type;
+            
+            if (type === 'emoji') {
+                document.getElementById('emojiBtn').classList.add('bg-purple-600', 'text-white');
+                document.getElementById('emojiBtn').classList.remove('bg-gray-200', 'text-gray-700');
+                document.getElementById('imageBtn').classList.remove('bg-purple-600', 'text-white');
+                document.getElementById('imageBtn').classList.add('bg-gray-200', 'text-gray-700');
+                
+                document.getElementById('emojiInput').classList.remove('hidden');
+                document.getElementById('imageInput').classList.add('hidden');
+            } else {
+                document.getElementById('imageBtn').classList.add('bg-purple-600', 'text-white');
+                document.getElementById('imageBtn').classList.remove('bg-gray-200', 'text-gray-700');
+                document.getElementById('emojiBtn').classList.remove('bg-purple-600', 'text-white');
+                document.getElementById('emojiBtn').classList.add('bg-gray-200', 'text-gray-700');
+                
+                document.getElementById('imageInput').classList.remove('hidden');
+                document.getElementById('emojiInput').classList.add('hidden');
+            }
+        }
+
+        function showAddMenuItemModal() {
+            document.getElementById('addMenuItemModal').classList.remove('hidden');
+            imageType = 'emoji';
+            toggleImageType('emoji');
+        }
+
+        function closeAddMenuItemModal() {
+            document.getElementById('addMenuItemModal').classList.add('hidden');
+            document.getElementById('addMenuItemForm').reset();
+        }
+
+        document.getElementById('addMenuItemForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            let displayImage = '';
+            if (imageType === 'emoji') {
+                displayImage = document.getElementById('menuItemEmoji').value;
+            } else {
+                displayImage = document.getElementById('menuItemImage').value;
+                if (!displayImage) {
+                    alert('Please enter image URL!');
+                    return;
+                }
+            }
+
+            const itemData = {
+                restaurant_id: currentRestaurant.id,
+                name: document.getElementById('menuItemName').value,
+                category: document.getElementById('menuItemCategory').value,
+                price: parseFloat(document.getElementById('menuItemPrice').value),
+                emoji: displayImage
+            };
+
+            const { error } = await supabase
+                .from('menu_items')
+                .insert([itemData]);
+
+            if (error) {
+                alert('Error adding item: ' + error.message);
+                return;
+            }
+
+            alert('Menu item added! 🎉');
+            closeAddMenuItemModal();
+            loadMenuItems();
+        });
+
+        async function deleteMenuItem(id) {
+            if (!confirm('Delete this item?')) return;
+
+            const { error } = await supabase
+                .from('menu_items')
+                .delete()
+                .eq('id', id);
+
+            if (error) {
+                alert('Error deleting item: ' + error.message);
+                return;
+            }
+
+            loadMenuItems();
+        }
+
+        function generateQRCodes() {
+            const count = parseInt(document.getElementById('tablesCount').value);
+            const container = document.getElementById('qrCodesContainer');
+            const baseUrl = window.location.origin + window.location.pathname;
+
+            let html = '';
+            for (let i = 1; i <= count; i++) {
+                const url = `${baseUrl}?restaurant=${currentRestaurant.id}&table=${i}`;
+                const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`;
+                
+                html += `
+                    <div class="border-2 border-gray-300 rounded-lg p-4 text-center">
+                        <img src="${qrUrl}" alt="Table ${i} QR" class="mx-auto mb-2">
+                        <div class="font-bold text-lg">Table ${i}</div>
+                        <a href="${qrUrl}" download="table-${i}.png" class="text-sm text-purple-600 hover:underline">Download</a>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+        }
+
+        function showCustomerView() {
+            document.getElementById('loginPage').classList.add('hidden');
+            document.getElementById('customerView').classList.remove('hidden');
+            loadRestaurantsForCustomer();
+        }
+
+        async function loadRestaurantsForCustomer() {
+            const { data: restaurants } = await supabase
+                .from('restaurants')
+                .select('*')
+                .eq('status', 'active');
+
+            const list = document.getElementById('restaurantsListCustomer');
+
+            if (!restaurants || restaurants.length === 0) {
+                list.innerHTML = '<div class="text-center py-6 text-gray-400">No restaurants available</div>';
+                return;
+            }
+
+            list.innerHTML = restaurants.map(r => `
+                <button onclick="selectRestaurantCustomer('${r.id}', '${r.name}')" class="w-full bg-purple-600 text-white p-4 rounded-lg hover:bg-purple-700 text-left">
+                    <div class="font-bold text-lg">${r.name}</div>
+                    <div class="text-sm opacity-90">${r.address || ''}</div>
+                </button>
+            `).join('');
+        }
+
+        async function selectRestaurantCustomer(id, name) {
+            currentRestaurant = { id: id, name: name };
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const tableNumber = urlParams.get('table');
+            
+            if (!tableNumber) {
+                const table = prompt('Enter Table Number:', '1');
+                if (!table) return;
+                document.getElementById('customerTableNumber').textContent = table;
+            } else {
+                document.getElementById('customerTableNumber').textContent = tableNumber;
+            }
+
+            document.getElementById('selectRestaurant').classList.add('hidden');
+            document.getElementById('menuView').classList.remove('hidden');
+            document.getElementById('customerRestaurantName').textContent = name;
+            
+            await loadMenuForCustomer(id);
+        }
+
+        async function loadMenuForCustomer(restaurantId) {
+            const { data: items } = await supabase
+                .from('menu_items')
+                .select('*')
+                .eq('restaurant_id', restaurantId)
+                .eq('available', true);
+
+            const container = document.getElementById('menuItemsCustomer');
+
+            if (!items || items.length === 0) {
+                container.innerHTML = '<div class="text-center py-12 text-gray-400 col-span-2">No menu items available</div>';
+                return;
+            }
+
+            container.innerHTML = items.map(item => {
+                const isImage = item.emoji && (item.emoji.startsWith('http://') || item.emoji.startsWith('https://'));
+                const imageDisplay = isImage 
+                    ? `<img src="${item.emoji}" alt="${item.name}" class="w-full h-32 object-cover rounded-lg mb-2">`
+                    : `<div class="text-5xl mb-2 text-center">${item.emoji}</div>`;
+                
+                return `
+                    <div class="bg-white rounded-lg shadow-lg p-4">
+                        ${imageDisplay}
+                        <h4 class="font-bold text-lg mb-1">${item.name}</h4>
+                        <p class="text-gray-600 mb-3">₹${item.price}</p>
+                        <button onclick='addToCart(${JSON.stringify(item)})' class="w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700">
+                            Add to Cart
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function addToCart(item) {
+            const existing = cart.find(i => i.id === item.id);
+            if (existing) {
+                existing.quantity++;
+            } else {
+                cart.push({ ...item, quantity: 1 });
+            }
+            updateCartUI();
+        }
+
+        function updateCartUI() {
+            const count = cart.reduce((sum, item) => sum + item.quantity, 0);
+            document.getElementById('cartCount').textContent = count;
+            
+            if (count > 0) {
+                document.getElementById('cartButton').classList.remove('hidden');
+            }
+        }
+
+        function showCart() {
+            const items = document.getElementById('cartItems');
+            const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+            items.innerHTML = cart.map(item => `
+                <div class="flex justify-between items-center border-b py-3">
+                    <div class="flex-1">
+                        <div class="font-semibold">${item.emoji} ${item.name}</div>
+                        <div class="text-gray-600">₹${item.price} × ${item.quantity}</div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <button onclick="updateCartQuantity('${item.id}', -1)" class="bg-gray-200 px-3 py-1 rounded">-</button>
+                        <span class="font-bold">${item.quantity}</span>
+                        <button onclick="updateCartQuantity('${item.id}', 1)" class="bg-gray-200 px-3 py-1 rounded">+</button>
+                        <button onclick="removeFromCart('${item.id}')" class="text-red-600 ml-2">🗑️</button>
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('cartTotal').textContent = total;
+            document.getElementById('cartModal').classList.remove('hidden');
+        }
+
+        function closeCart() {
+            document.getElementById('cartModal').classList.add('hidden');
+        }
+
+        function updateCartQuantity(itemId, change) {
+            const item = cart.find(i => i.id === itemId);
+            if (item) {
+                item.quantity += change;
+                if (item.quantity <= 0) {
+                    removeFromCart(itemId);
+                } else {
+                    updateCartUI();
+                    showCart();
+                }
+            }
+        }
+
+        function removeFromCart(itemId) {
+            cart = cart.filter(i => i.id !== itemId);
+            updateCartUI();
+            if (cart.length > 0) {
+                showCart();
+            } else {
+                closeCart();
+            }
+        }
+
+        async function placeOrder() {
+            const customerName = document.getElementById('customerNameInput').value.trim();
+            
+            if (!customerName) {
+                alert('Please enter your name');
+                return;
+            }
+
+            if (cart.length === 0) {
+                alert('Cart is empty');
+                return;
+            }
+
+            const orderData = {
+                restaurant_id: currentRestaurant.id,
+                table_number: parseInt(document.getElementById('customerTableNumber').textContent),
+                customer_name: customerName,
+                items: JSON.stringify(cart),
+                total: cart.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+                status: 'pending'
+            };
+
+            const { error } = await supabase
+                .from('orders')
+                .insert([orderData]);
+
+            if (error) {
+                alert('Error placing order: ' + error.message);
+                return;
+            }
+
+            alert('🎉 Order Placed Successfully!\n\nYour order has been sent to the kitchen!');
+            cart = [];
+            updateCartUI();
+            closeCart();
+            document.getElementById('customerNameInput').value = '';
+        }
+
+        function showLoginPage() {
+            document.getElementById('customerView').classList.add('hidden');
+            document.getElementById('loginPage').classList.remove('hidden');
+        }
+
+        function logout() {
+            currentUser = null;
+            currentRestaurant = null;
+            document.getElementById('superAdminDashboard').classList.add('hidden');
+            document.getElementById('restaurantAdminDashboard').classList.add('hidden');
+            document.getElementById('loginPage').classList.remove('hidden');
+        }
+
+        window.addEventListener('load', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const restaurantId = urlParams.get('restaurant');
+            const tableNumber = urlParams.get('table');
+            
+            if (restaurantId && tableNumber) {
+                showCustomerView();
+                setTimeout(async () => {
+                    const { data: restaurant } = await supabase
+                        .from('restaurants')
+                        .select('*')
+                        .eq('id', restaurantId)
+                        .single();
+                    
+                    if (restaurant) {
+                        currentRestaurant = restaurant;
+                        document.getElementById('customerTableNumber').textContent = tableNumber;
+                        document.getElementById('selectRestaurant').classList.add('hidden');
+                        document.getElementById('menuView').classList.remove('hidden');
+                        document.getElementById('customerRestaurantName').textContent = restaurant.name;
+                        await loadMenuForCustomer(restaurantId);
+                    }
+                }, 500);
+            }
+        });
+    </script>
+</body>
+</html>
